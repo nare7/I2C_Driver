@@ -1,0 +1,42 @@
+/dts-v1/;
+/plugin/;
+
+/*
+ * Device Tree Overlay for I2C-1 on Raspberry Pi 4
+ * Enables I2C-1 with STM32F401RE slave device
+ * 
+ * I2C-1 Pins on RPi4:
+ * GPIO 2 (Pin 3)  - SDA
+ * GPIO 3 (Pin 5)  - SCL
+ */
+
+/ {
+    compatible = "brcm,bcm2711";
+    
+    fragment@0 {
+        target = <&i2c1>;
+        __overlay__ {
+            status = "okay";
+            pinctrl-names = "default";
+            pinctrl-0 = <&i2c1_pins>;
+            clock-frequency = <100000>;  /* 100kHz standard mode */
+            
+            stm32_slave: stm32@30 {
+                compatible = "stm32,stm32f401";
+                reg = <0x30>;
+                status = "okay";
+            };
+        };
+    };
+    
+    fragment@1 {
+        target = <&gpio>;
+        __overlay__ {
+            i2c1_pins: i2c1_pins {
+                brcm,pins = <2 3>;           /* GPIO 2 (SDA), GPIO 3 (SCL) */
+                brcm,function = <4>;          /* ALT0 function for I2C */
+                brcm,pull = <2>;              /* Pull-up enabled */
+            };
+        };
+    };
+};

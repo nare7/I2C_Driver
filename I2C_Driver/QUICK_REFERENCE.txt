@@ -1,0 +1,196 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║             I2C RPi4 ↔ STM32F401RE - QUICK REFERENCE             ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+┌───────────────────────────────────────────────────────────────────┐
+│ RASPBERRY PI 4 - QUICK COMMANDS                                   │
+└───────────────────────────────────────────────────────────────────┘
+
+┌─ I2C Tools ────────────────────────────────────────────────────────┐
+│ sudo i2cdetect -y 1              # Scan I2C bus 1                  │
+│ sudo i2cget -y 1 0x30 0xAA       # Read from STM32                 │
+│ sudo i2cset -y 1 0x30 0xAA       # Send 0xAA to STM32              │
+│ sudo i2cdump -y 1 0x30           # Dump all registers              │
+└────────────────────────────────────────────────────────────────────┘
+
+┌─ Driver Management ────────────────────────────────────────────────┐
+│ make                             # Compile driver                  │
+│ sudo insmod i2c_char_driver.ko   # Load driver                     │
+│ sudo rmmod i2c_char_driver       # Unload driver                   │
+│ lsmod | grep i2c                 # Check loaded modules            │
+│ dmesg | tail -20                 # View kernel messages            │
+│ ls -l /dev/i2c_stm32            # Check device node               │
+└────────────────────────────────────────────────────────────────────┘
+
+┌─ Device Tree ──────────────────────────────────────────────────────┐
+│ # Compile overlay                                                  │
+│ sudo dtc -@ -I dts -O dtb -o i2c1-stm32-overlay.dtbo \            │
+│     i2c1-stm32-overlay.dts                                         │
+│                                                                    │
+│ # Copy to boot                                                     │
+│ sudo cp i2c1-stm32-overlay.dtbo /boot/overlays/                   │
+│                                                                    │
+│ # Add to /boot/config.txt                                          │
+│ dtoverlay=i2c1-stm32-overlay                                       │
+└────────────────────────────────────────────────────────────────────┘
+
+┌─ Testing ──────────────────────────────────────────────────────────┐
+│ gcc -o test_i2c test_i2c.c       # Compile test app               │
+│ sudo ./test_i2c                  # Run test (sends 0xAA)           │
+│                                                                    │
+│ # Python test                                                      │
+│ python3 -c "open('/dev/i2c_stm32','wb').write(b'\xAA')"           │
+└────────────────────────────────────────────────────────────────────┘
+
+
+┌───────────────────────────────────────────────────────────────────┐
+│ STM32F401RE - QUICK COMMANDS                                      │
+└───────────────────────────────────────────────────────────────────┘
+
+┌─ Compilation ──────────────────────────────────────────────────────┐
+│ make -f Makefile_STM32           # Build firmware                  │
+│ make -f Makefile_STM32 clean     # Clean build                     │
+│ arm-none-eabi-size stm32_i2c_slave.elf  # Check size               │
+└────────────────────────────────────────────────────────────────────┘
+
+┌─ Flashing ─────────────────────────────────────────────────────────┐
+│ # Using st-flash                                                   │
+│ sudo st-flash write stm32_i2c_slave.bin 0x8000000                 │
+│                                                                    │
+│ # Using OpenOCD                                                    │
+│ make -f Makefile_STM32 flash-openocd                              │
+│                                                                    │
+│ # Erase chip                                                       │
+│ sudo st-flash erase                                               │
+│                                                                    │
+│ # Read chip                                                        │
+│ sudo st-flash read output.bin 0x8000000 0x80000                   │
+└────────────────────────────────────────────────────────────────────┘
+
+
+┌───────────────────────────────────────────────────────────────────┐
+│ HARDWARE CONNECTIONS                                              │
+└───────────────────────────────────────────────────────────────────┘
+
+  Raspberry Pi 4          STM32F401RE Nucleo
+  ──────────────          ──────────────────
+  Pin 3  (GPIO2)  ◄────►  PB9 (I2C1_SDA)
+  Pin 5  (GPIO3)  ◄────►  PB8 (I2C1_SCL)
+  Pin 6  (GND)    ◄────►  GND
+  
+  Pull-ups: 4.7kΩ on SDA and SCL to 3.3V
+
+
+┌───────────────────────────────────────────────────────────────────┐
+│ COMMON ISSUES & FIXES                                             │
+└───────────────────────────────────────────────────────────────────┘
+
+┌─ Device Not Detected (0x30 missing in i2cdetect) ─────────────────┐
+│ • Check wiring (SDA, SCL, GND)                                     │
+│ • Verify STM32 is powered and running                              │
+│ • Check pull-up resistors present                                  │
+│ • Reset STM32: press reset button                                  │
+│ • Reflash STM32 firmware                                           │
+└────────────────────────────────────────────────────────────────────┘
+
+┌─ Driver Won't Load ────────────────────────────────────────────────┐
+│ • Check kernel headers: uname -r vs /lib/modules/                  │
+│ • Rebuild driver: make clean && make                               │
+│ • Check dmesg for errors: dmesg | tail                             │
+│ • Verify I2C bus exists: ls /dev/i2c*                              │
+└────────────────────────────────────────────────────────────────────┘
+
+┌─ Permission Denied ────────────────────────────────────────────────┐
+│ • Run with sudo: sudo ./test_i2c                                   │
+│ • Fix permissions: sudo chmod 666 /dev/i2c_stm32                   │
+│ • Add to i2c group: sudo usermod -a -G i2c $USER                   │
+└────────────────────────────────────────────────────────────────────┘
+
+┌─ LED Not Toggling ─────────────────────────────────────────────────┐
+│ • Verify 0xAA is being sent                                        │
+│ • Check STM32 startup (3 LED blinks)                               │
+│ • Use i2cdetect to confirm device responds                         │
+│ • Check I2C signals with logic analyzer                            │
+└────────────────────────────────────────────────────────────────────┘
+
+
+┌───────────────────────────────────────────────────────────────────┐
+│ FILE STRUCTURE                                                    │
+└───────────────────────────────────────────────────────────────────┘
+
+Raspberry Pi Files:
+├── i2c_char_driver.c          # Linux kernel driver
+├── Makefile                    # Driver build file
+├── i2c1-stm32-overlay.dts     # Device tree overlay
+├── test_i2c.c                 # Test application
+└── SETUP_GUIDE.md             # Complete setup guide
+
+STM32 Files:
+├── stm32_i2c_slave.c          # Main firmware
+├── startup_stm32f401re.c      # Startup/vector table
+├── stm32f401re.ld             # Linker script
+└── Makefile_STM32             # Firmware build file
+
+
+┌───────────────────────────────────────────────────────────────────┐
+│ CONFIGURATION                                                     │
+└───────────────────────────────────────────────────────────────────┘
+
+I2C Settings:
+  • Bus: I2C-1
+  • Slave Address: 0x30 (7-bit)
+  • Speed: 100 kHz (Standard Mode)
+  • Data to Send: 0xAA
+
+GPIO Pins (STM32):
+  • PB8: I2C1_SCL
+  • PB9: I2C1_SDA
+  • PA5: LED (toggles on 0xAA)
+
+GPIO Pins (RPi4):
+  • GPIO 2 (Pin 3): SDA
+  • GPIO 3 (Pin 5): SCL
+
+
+┌───────────────────────────────────────────────────────────────────┐
+│ USEFUL LOGS & DEBUGGING                                           │
+└───────────────────────────────────────────────────────────────────┘
+
+# Watch kernel messages in real-time
+sudo dmesg -w
+
+# Clear kernel ring buffer
+sudo dmesg -c
+
+# Check I2C traffic (requires i2c-tools-debug)
+sudo i2cdump -y 1 0x30
+
+# Monitor with strace
+sudo strace ./test_i2c
+
+# Check system logs
+journalctl -k | grep i2c
+
+
+┌───────────────────────────────────────────────────────────────────┐
+│ TESTING CHECKLIST                                                 │
+└───────────────────────────────────────────────────────────────────┘
+
+□ Hardware connected (SDA, SCL, GND)
+□ Pull-up resistors installed
+□ I2C enabled on RPi (/boot/config.txt)
+□ i2cdetect shows device at 0x30
+□ Device tree overlay compiled and loaded
+□ Kernel driver compiled
+□ Kernel driver loaded (check lsmod)
+□ /dev/i2c_stm32 exists
+□ STM32 firmware compiled
+□ STM32 flashed successfully
+□ STM32 shows 3 LED blinks on startup
+□ Test application compiled
+□ Test sends 0xAA successfully
+□ STM32 LED toggles on receive
+
+═══════════════════════════════════════════════════════════════════
+
+For detailed explanations, see SETUP_GUIDE.md
